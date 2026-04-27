@@ -1,38 +1,42 @@
 from fastapi import APIRouter, HTTPException, Query
-
 from app.services.lichess_service import get_theoretical_moves
 from app.services.stockfish_service import evaluate_position
 from app.utils.chess_utils import validate_fen
+from app.agent import chess_agent
 
 router = APIRouter()
 
 
-#  1. COUPS THÉORIQUES (Lichess)
+#  1. Endpoint MOVES (Lichess)
 @router.get("/api/v1/moves")
 def get_moves(fen: str = Query(..., description="FEN position")):
-    
     board = validate_fen(fen)
     if not board:
         raise HTTPException(status_code=400, detail="FEN invalide")
 
-    moves = get_theoretical_moves(fen)
+    try:
+        moves = get_theoretical_moves(fen)
+    except Exception:
+        raise HTTPException(status_code=503, detail="Lichess unavailable")
 
     return {
         "source": "lichess",
         "fen": fen,
-        "moves": moves
+        "moves": moves or []
     }
 
 
-#  2. ÉVALUATION (Stockfish)
+#  2. Endpoint EVALUATE (Stockfish)
 @router.get("/api/v1/evaluate")
 def evaluate(fen: str = Query(..., description="FEN position")):
-    
     board = validate_fen(fen)
     if not board:
         raise HTTPException(status_code=400, detail="FEN invalide")
 
-    evaluation = evaluate_position(fen)
+    try:
+        evaluation = evaluate_position(fen)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Stockfish error")
 
     return {
         "source": "stockfish",
@@ -41,29 +45,26 @@ def evaluate(fen: str = Query(..., description="FEN position")):
     }
 
 
-# AGENT INTELLIGENT
+#  3. Endpoint ANALYZE (Agent)
 @router.get("/api/v1/analyze")
 def analyze_position(fen: str = Query(..., description="FEN position")):
-    
     board = validate_fen(fen)
     if not board:
         raise HTTPException(status_code=400, detail="FEN invalide")
 
-    # 1️ Lichess
-    moves = get_theoretical_moves(fen)
+    try:
+        moves = get_theoretical_moves(fen)
+    except Exception:
+        moves = None
 
-    if moves:
-        return {
-            "source": "lichess",
-            "fen": fen,
-            "moves": moves
-        }
+    try:
+        evaluation = evaluate_position(fen)
+    except Exception:
+        evaluation = None
 
-    # 2️ Stockfish fallback
-    evaluation = evaluate_position(fen)
+    decision = chess_agent(fen, moves, evaluation)
 
     return {
-        "source": "stockfish",
         "fen": fen,
-        "evaluation": evaluation
+        "result": decision
     }
