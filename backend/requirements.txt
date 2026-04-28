@@ -1,6 +1,7 @@
 fastapi
 uvicorn
-requests
+pymilvus
+sentence-transformers
 python-chess
 stockfish
 langgraph
