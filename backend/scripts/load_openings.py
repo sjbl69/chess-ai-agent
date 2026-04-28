@@ -32,4 +32,4 @@ vectors = model.encode(openings).tolist()
 collection.insert([vectors, openings])
 collection.flush()
 
-print("✅ Data inserted")
+print(" Data inserted")
