@@ -49,7 +49,7 @@ collection.flush()
 
 print("Data inserted")
 
-# 🔥 INDEX
+#  INDEX
 collection.create_index(
     field_name="embedding",
     index_params={
@@ -61,7 +61,7 @@ collection.create_index(
 
 print("Index created")
 
-# 🔥 LOAD
+#  LOAD
 collection.load()
 
 print("Collection loaded")
