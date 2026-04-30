@@ -1,21 +1,19 @@
-version: "3.9"
-
 services:
-
   backend:
     build: ./backend
     container_name: backend
     ports:
-      - "${BACKEND_PORT}:8000"
+      - "8000:8000"
     depends_on:
       - milvus
 
   milvus:
     image: milvusdb/milvus:v2.3.3
     container_name: milvus
+    command: ["milvus", "run", "standalone"]
     ports:
       - "19530:19530"
       - "9091:9091"
     environment:
-      - ETCD_USE_EMBED=true
-    command: ["milvus", "run", "standalone"]
+      ETCD_USE_EMBED: "true"
+      COMMON_STORAGETYPE: "local"

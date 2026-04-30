@@ -1,6 +1,7 @@
 fastapi
 uvicorn
+python-chess
+stockfish
 requests
-python-dotenv
-google-api-python-client
-langgraph
+sentence-transformers
+pymilvus

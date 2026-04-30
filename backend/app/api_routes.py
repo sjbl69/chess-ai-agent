@@ -1,80 +1,78 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query, HTTPException
+import chess
 
-from app.services.lichess_service import get_theoretical_moves
-from app.services.stockfish_service import evaluate_position
-from app.utils.chess_utils import validate_fen
 from app.services.vector_service import search_opening
-from app.services.youtube_service import search_youtube_videos
-from app.agent import graph
+from app.services.stockfish_service import evaluate_position
 
 router = APIRouter()
 
 
-# 1. Moves
+# ==============================
+# PARSE USER INPUT → FEN
+# ==============================
+def parse_to_fen(user_input: str) -> str:
+    # 1. Start position
+    if user_input == "startpos":
+        return chess.Board().fen()
+
+    # 2. Try direct FEN
+    try:
+        board = chess.Board(user_input)
+        return board.fen()
+    except:
+        pass
+
+    # 3. Try SAN moves (e4 e5 Nf3)
+    board = chess.Board()
+    try:
+        for move in user_input.split():
+            board.push_san(move)
+        return board.fen()
+    except:
+        raise HTTPException(status_code=400, detail="Invalid input")
+
+
+# ==============================
+# API ENDPOINT
+# ==============================
 @router.get("/api/v1/moves")
 def get_moves(fen: str = Query(...)):
-    if not validate_fen(fen):
-        raise HTTPException(status_code=400, detail="FEN invalide")
-
     try:
-        moves = get_theoretical_moves(fen)
-    except Exception:
-        raise HTTPException(status_code=502, detail="Erreur API Lichess")
+        # 1. Convert input → FEN
+        fen_clean = parse_to_fen(fen)
 
-    if not moves:
-        raise HTTPException(status_code=404, detail="Aucun coup théorique")
+        # 2. Vector search (openings)
+        opening_result = search_opening(fen)
 
-    return {"moves": moves}
+        # 3. Stockfish evaluation (SAFE)
+        evaluation = {"score": 0}
+        try:
+            evaluation = evaluate_position(fen_clean)
+        except Exception as e:
+            print("Stockfish error:", e)
 
+        # 4. Normalize openings
+        openings = (
+            opening_result.get("moves")
+            or opening_result.get("openings")
+            or []
+        )
 
-# 2. Stockfish
-@router.get("/api/v1/evaluate")
-def evaluate(fen: str = Query(...)):
-    if not validate_fen(fen):
-        raise HTTPException(status_code=400, detail="FEN invalide")
+        # 5. Response
+        return {
+            "source": opening_result.get("source", "unknown"),
+            "openings": openings,
+            "score": evaluation.get("score", 0),
+        }
 
-    evaluation = evaluate_position(fen)
+    except HTTPException as e:
+        raise e
 
-    return {"evaluation": evaluation}
-
-
-# 3. Vector search
-@router.get("/api/v1/vector-search")
-def vector_search(query: str = Query(...)):
-    return search_opening(query)
-
-
-# 4. YouTube
-@router.get("/api/v1/videos/{opening}")
-def get_videos(opening: str):
-    videos = search_youtube_videos(opening)
-
-    if not videos:
-        raise HTTPException(status_code=404, detail="Aucune vidéo trouvée")
-
-    return {"videos": videos}
-
-
-# 5. Analyse complète (agent)
-@router.get("/api/v1/analyze")
-def analyze(fen: str = Query(...)):
-    if not validate_fen(fen):
-        raise HTTPException(status_code=400, detail="FEN invalide")
-
-    result = graph.invoke({
-        "fen": fen,
-        "moves": None,
-        "evaluation": None,
-        "source": None,
-        "opening": None,
-        "videos": None
-    })
-
-    return {
-        "fen": fen,
-        "source": result.get("source"),
-        "moves": result.get("moves"),
-        "evaluation": result.get("evaluation"),
-        "opening": result.get("opening"),
-        "videos": result.get("videos")
-    }
+    except Exception as e:
+        print("API ERROR:", e)
+        return {
+            "source": "error",
+            "openings": [],
+            "score": 0,
+            "error": str(e),
+        }
