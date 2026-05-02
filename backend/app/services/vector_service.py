@@ -1,50 +1,98 @@
 """
-Service de recherche vectorielle (version simplifiée sans ML lourd)
+Vector Search Service
 
 Objectif :
-- Fournir un endpoint fonctionnel /vector-search
-- Éviter les conflits avec transformers / sentence-transformers
-- Garantir la stabilité du projet
+- Fournir une recherche vectorielle pour les ouvertures d’échecs
+- Version actuelle simulée (POC)
+- Structure prête pour intégration Milvus
+
+Note:
+L'intégration Milvus pourra remplacer la logique simulée sans modifier l'API.
 """
 
+from typing import List, Dict
 
-def search_similar_positions(query: str):
+
+def search_similar_positions(query: str) -> List[Dict]:
     """
-    Simule une recherche vectorielle.
+    Recherche des positions similaires (simulation vectorielle)
 
     Args:
         query (str): requête utilisateur (ex: "sicilian defense")
 
     Returns:
-        list: résultats simulés
+        list: liste de résultats similaires
     """
 
-    # 🔒 sécurité basique
-    if not query or len(query.strip()) == 0:
+    # 🔒 sécurité
+    if not query or not isinstance(query, str):
         return []
 
-    query = query.lower()
+    query = query.lower().strip()
 
-    # 🧠 logique simulée (tu peux adapter)
+    # 🧠 Simulation de recherche vectorielle
+    # (remplaçable par Milvus ou autre DB vectorielle)
+
     if "sicilian" in query:
         return [
-            {"id": 1, "opening": "Sicilian Defense", "score": 0.95},
-            {"id": 2, "opening": "Najdorf Variation", "score": 0.92},
+            {
+                "id": 1,
+                "opening": "Sicilian Defense",
+                "score": 0.95
+            },
+            {
+                "id": 2,
+                "opening": "Najdorf Variation",
+                "score": 0.92
+            }
         ]
 
     elif "french" in query:
         return [
-            {"id": 3, "opening": "French Defense", "score": 0.96},
-            {"id": 4, "opening": "Advance Variation", "score": 0.90},
+            {
+                "id": 3,
+                "opening": "French Defense",
+                "score": 0.96
+            },
+            {
+                "id": 4,
+                "opening": "Advance Variation",
+                "score": 0.90
+            }
         ]
 
     elif "caro" in query:
         return [
-            {"id": 5, "opening": "Caro-Kann Defense", "score": 0.94},
-            {"id": 6, "opening": "Classical Variation", "score": 0.89},
+            {
+                "id": 5,
+                "opening": "Caro-Kann Defense",
+                "score": 0.94
+            },
+            {
+                "id": 6,
+                "opening": "Classical Variation",
+                "score": 0.89
+            }
         ]
 
     # 🎯 fallback générique
     return [
-        {"id": 0, "opening": "Unknown Opening", "score": 0.80}
+        {
+            "id": 0,
+            "opening": "Unknown Opening",
+            "score": 0.80
+        }
     ]
+
+
+# 🧠 FUTURE EXTENSION (Milvus)
+"""
+Exemple d'intégration future :
+
+from pymilvus import Collection
+
+def search_similar_positions(query: str):
+    embedding = encoder.encode(query)
+    results = collection.search(embedding)
+    return results
+"""
