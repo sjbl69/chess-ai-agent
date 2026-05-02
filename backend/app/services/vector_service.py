@@ -1,74 +1,92 @@
 """
-Vector Search Service
+Vector Search Service (Milvus + fallback)
 
-- Utilise Milvus si disponible
-- Sinon fallback simulé
-- Ne casse jamais l'API
+- Utilise la collection 'chess_openings'
+- Fait une vraie recherche vectorielle avec collection.search
+- Utilise des embeddings si le modèle est dispo
+- Fallback simulé si Milvus ou modèle indisponible
 """
 
 from typing import List, Dict
 
-# tentative import Milvus (optionnel)
+# --- Milvus (optionnel) ---
 try:
     from pymilvus import connections, Collection
     MILVUS_AVAILABLE = True
-except:
+except Exception:
     MILVUS_AVAILABLE = False
 
+# --- Embedding (optionnel) ---
+try:
+    from sentence_transformers import SentenceTransformer
+    _model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+    EMBEDDING_AVAILABLE = True
+except Exception:
+    _model = None
+    EMBEDDING_AVAILABLE = False
 
-def search_similar_positions(query: str) -> List[Dict]:
-    """
-    Recherche vectorielle avec fallback
-    """
 
-    if not query or not isinstance(query, str):
-        return []
-
-    query = query.lower().strip()
-
-    # PARTIE MILVUS (si dispo)
-
-    if MILVUS_AVAILABLE:
-        try:
-            connections.connect(host="milvus", port="19530")
-
-            collection = Collection("chess_positions")
-
-           
-            # On simule une recherche Milvus minimale
-
-            results = collection.query(
-                expr="id >= 0",
-                limit=2
-            )
-
-            if results:
-                return [
-                    {
-                        "id": r.get("id", 0),
-                        "opening": "From Milvus",
-                        "score": 0.99
-                    }
-                    for r in results
-                ]
-
-        except Exception as e:
-            print("Milvus indisponible -> fallback :", e)
-
-    # FALLBACK SIMULÉ
-
-    if "sicilian" in query:
+def _fallback(query: str) -> List[Dict]:
+    """Fallback simulé (ne casse jamais l’API)."""
+    q = query.lower()
+    if "sicilian" in q:
         return [
             {"id": 1, "opening": "Sicilian Defense", "score": 0.95},
             {"id": 2, "opening": "Najdorf Variation", "score": 0.92},
         ]
-
-    elif "french" in query:
+    if "french" in q:
         return [
             {"id": 3, "opening": "French Defense", "score": 0.96},
             {"id": 4, "opening": "Advance Variation", "score": 0.90},
         ]
+    return [{"id": 0, "opening": "Unknown Opening", "score": 0.80}]
 
-    return [
-        {"id": 0, "opening": "Unknown Opening", "score": 0.80}
-    ]
+
+def search_similar_positions(query: str) -> List[Dict]:
+    """
+    Recherche vectorielle sur Milvus (collection: chess_openings).
+    """
+    if not query or not isinstance(query, str):
+        return []
+
+    # Si Milvus ou embeddings indisponibles → fallback
+    if not (MILVUS_AVAILABLE and EMBEDDING_AVAILABLE):
+        return _fallback(query)
+
+    try:
+        # Connexion Milvus (adapter host/port si besoin)
+        connections.connect(host="milvus", port="19530")
+
+        # ⚠️ IMPORTANT : même nom que dans load_openings.py
+        collection = Collection("chess_openings")
+
+        # Encoder la requête en vecteur
+        query_vector = _model.encode([query])[0].tolist()
+
+        # Vraie recherche vectorielle
+        results = collection.search(
+            data=[query_vector],
+            anns_field="embedding",   # ⚠️ doit exister dans ton schéma
+            param={"metric_type": "L2", "params": {"nprobe": 10}},
+            limit=3
+        )
+
+        output = []
+        for hits in results:
+            for hit in hits:
+                entity = hit.entity
+                output.append({
+                    "id": getattr(entity, "id", None),
+                    "opening": getattr(entity, "opening", "Unknown"),
+                    "score": float(hit.score)
+                })
+
+        # Si Milvus renvoie quelque chose → on prend
+        if output:
+            return output
+
+    except Exception as e:
+        print("Milvus error → fallback:", e)
+
+    # Sinon fallback
+    return _fallback(query)
