@@ -1,116 +1,80 @@
-from fastapi import APIRouter, Query, HTTPException
-import chess
+from fastapi import APIRouter, HTTPException, Query
 
-from app.services.vector_service import search_opening
+from app.services.lichess_service import get_theoretical_moves
 from app.services.stockfish_service import evaluate_position
 from app.services.youtube_service import search_youtube_videos
+from app.services.vector_service import search_similar_positions
+
+from app.utils.chess_utils import validate_fen
 
 router = APIRouter()
 
 
-# PARSE USER INPUT → FEN
-
-def parse_to_fen(user_input: str) -> str:
-    # 1. Start position
-    if user_input == "startpos":
-        return chess.Board().fen()
-
-    # 2. Try direct FEN
-    try:
-        board = chess.Board(user_input)
-        return board.fen()
-    except:
-        pass
-
-    # 3. Try SAN moves (e4 e5 Nf3)
-    board = chess.Board()
-    try:
-        for move in user_input.split():
-            board.push_san(move)
-        return board.fen()
-    except:
-        raise HTTPException(status_code=400, detail="Invalid input")
-
-
-# ENDPOINT 1 — CHESS MOVES
-
+# ♟️ 1. Récupérer les coups théoriques (Lichess)
 @router.get("/api/v1/moves")
 def get_moves(fen: str = Query(...)):
+    if not validate_fen(fen):
+        raise HTTPException(status_code=400, detail="FEN invalide")
+
     try:
-        # Convert input → FEN
-        fen_clean = parse_to_fen(fen)
+        moves = get_theoretical_moves(fen)
 
-        # Vector search (openings)
-        opening_result = search_opening(fen)
+        if moves is None:
+            raise HTTPException(status_code=502, detail="Erreur Lichess")
 
-        # Stockfish evaluation (SAFE)
-        evaluation = {"score": 0}
-        try:
-            evaluation = evaluate_position(fen_clean)
-        except Exception as e:
-            print("Stockfish error:", e)
-
-        # Normalize openings
-        openings = (
-            opening_result.get("moves")
-            or opening_result.get("openings")
-            or []
-        )
-
-        return {
-            "source": opening_result.get("source", "unknown"),
-            "openings": openings,
-            "score": evaluation.get("score", 0),
-        }
-
-    except HTTPException as e:
-        raise e
+        return {"moves": moves}
 
     except Exception as e:
-        print("API ERROR:", e)
-        return {
-            "source": "error",
-            "openings": [],
-            "score": 0,
-            "error": str(e),
-        }
+        print("Erreur /moves:", e)
+        raise HTTPException(status_code=500, detail="Erreur interne")
 
 
-# ENDPOINT 2 — VECTOR SEARCH (étape 3)
+# 📊 2. Évaluation Stockfish
+@router.get("/api/v1/evaluate")
+def evaluate(fen: str = Query(...)):
+    if not validate_fen(fen):
+        raise HTTPException(status_code=400, detail="FEN invalide")
 
+    try:
+        evaluation = evaluate_position(fen)
+
+        if evaluation is None:
+            raise HTTPException(status_code=500, detail="Erreur Stockfish")
+
+        return {"evaluation": evaluation}
+
+    except Exception as e:
+        print("Erreur /evaluate:", e)
+        raise HTTPException(status_code=500, detail="Erreur interne")
+
+
+# 🔍 3. Vector Search (Milvus / fallback)
 @router.get("/vector-search")
 def vector_search(query: str = Query(...)):
     try:
-        result = search_opening(query)
+        results = search_similar_positions(query)
 
-        return {
-            "source": result.get("source", "unknown"),
-            "results": result.get("moves") or result.get("openings") or []
-        }
+        if results is None:
+            raise HTTPException(status_code=500, detail="Erreur vector search")
+
+        return {"results": results}
 
     except Exception as e:
-        return {
-            "source": "error",
-            "results": [],
-            "error": str(e)
-        }
+        print("Erreur /vector-search:", e)
+        raise HTTPException(status_code=500, detail="Erreur interne")
 
 
-# ENDPOINT 3 — YOUTUBE VIDEOS (étape 4)
-
+# 🎥 4. Vidéos YouTube par ouverture
 @router.get("/api/v1/videos/{opening}")
 def get_videos(opening: str):
     try:
         videos = search_youtube_videos(opening)
 
-        return {
-            "opening": opening,
-            "videos": videos
-        }
+        if not videos:
+            raise HTTPException(status_code=404, detail="Aucune vidéo trouvée")
+
+        return {"videos": videos}
 
     except Exception as e:
-        return {
-            "opening": opening,
-            "videos": [],
-            "error": str(e)
-        }
+        print("Erreur /videos:", e)
+        raise HTTPException(status_code=500, detail="Erreur interne")

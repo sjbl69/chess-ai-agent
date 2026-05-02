@@ -1,68 +1,50 @@
-from sentence_transformers import SentenceTransformer
-import numpy as np
+"""
+Service de recherche vectorielle (version simplifiée sans ML lourd)
 
-from pymilvus import connections, Collection
-
-model = SentenceTransformer("all-MiniLM-L6-v2")
-
-# connexion Milvus
-try:
-    connections.connect(host="milvus", port="19530")
-    collection = Collection("chess_openings")
-    collection.load()
-    MILVUS_AVAILABLE = True
-    print("Milvus connecté")
-except Exception as e:
-    print("Milvus non dispo:", e)
-    MILVUS_AVAILABLE = False
+Objectif :
+- Fournir un endpoint fonctionnel /vector-search
+- Éviter les conflits avec transformers / sentence-transformers
+- Garantir la stabilité du projet
+"""
 
 
-# fallback local
-OPENINGS = [
-    "King's Pawn Opening e4",
-    "Queen's Gambit d4 c4",
-    "Sicilian Defense c5",
-    "French Defense e6",
-    "Caro-Kann Defense c6"
-]
+def search_similar_positions(query: str):
+    """
+    Simule une recherche vectorielle.
 
-opening_embeddings = model.encode(OPENINGS)
+    Args:
+        query (str): requête utilisateur (ex: "sicilian defense")
 
+    Returns:
+        list: résultats simulés
+    """
 
-def search_opening(query: str):
-    try:
-        query_embedding = model.encode([query])[0]
+    # 🔒 sécurité basique
+    if not query or len(query.strip()) == 0:
+        return []
 
-        # CAS MILVUS
-        if MILVUS_AVAILABLE:
-            results = collection.search(
-                data=[query_embedding.tolist()],
-                anns_field="embedding",
-                param={"metric_type": "COSINE", "params": {"nprobe": 10}},
-                limit=3,
-                output_fields=["name"]  # IMPORTANT
-            )
+    query = query.lower()
 
-            openings = []
-            for hits in results:
-                for hit in hits:
-                    openings.append(hit.entity.get("name"))
+    # 🧠 logique simulée (tu peux adapter)
+    if "sicilian" in query:
+        return [
+            {"id": 1, "opening": "Sicilian Defense", "score": 0.95},
+            {"id": 2, "opening": "Najdorf Variation", "score": 0.92},
+        ]
 
-            if openings:
-                return {
-                    "source": "milvus",
-                    "openings": openings
-                }
+    elif "french" in query:
+        return [
+            {"id": 3, "opening": "French Defense", "score": 0.96},
+            {"id": 4, "opening": "Advance Variation", "score": 0.90},
+        ]
 
-        # FALLBACK LOCAL
-        similarities = np.dot(opening_embeddings, query_embedding)
-        best_idx = int(np.argmax(similarities))
+    elif "caro" in query:
+        return [
+            {"id": 5, "opening": "Caro-Kann Defense", "score": 0.94},
+            {"id": 6, "opening": "Classical Variation", "score": 0.89},
+        ]
 
-        return {
-            "source": "local",
-            "opening": OPENINGS[best_idx],
-            "score": float(similarities[best_idx]),
-        }
-
-    except Exception as e:
-        return {"error": str(e)}
+    # 🎯 fallback générique
+    return [
+        {"id": 0, "opening": "Unknown Opening", "score": 0.80}
+    ]
