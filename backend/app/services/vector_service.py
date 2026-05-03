@@ -9,14 +9,14 @@ Vector Search Service (Milvus + fallback)
 
 from typing import List, Dict
 
-# --- Milvus (optionnel) ---
+# Milvus 
 try:
     from pymilvus import connections, Collection
     MILVUS_AVAILABLE = True
 except Exception:
     MILVUS_AVAILABLE = False
 
-# --- Embedding (optionnel) ---
+# Embedding 
 try:
     from sentence_transformers import SentenceTransformer
     _model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
@@ -57,7 +57,7 @@ def search_similar_positions(query: str) -> List[Dict]:
         # Connexion Milvus (adapter host/port si besoin)
         connections.connect(host="milvus", port="19530")
 
-        # ⚠️ IMPORTANT : même nom que dans load_openings.py
+        #  IMPORTANT : même nom que dans load_openings.py
         collection = Collection("chess_openings")
 
         # Encoder la requête en vecteur
@@ -66,7 +66,7 @@ def search_similar_positions(query: str) -> List[Dict]:
         # Vraie recherche vectorielle
         results = collection.search(
             data=[query_vector],
-            anns_field="embedding",   # ⚠️ doit exister dans ton schéma
+            anns_field="embedding",   
             param={"metric_type": "L2", "params": {"nprobe": 10}},
             limit=3
         )
@@ -81,7 +81,7 @@ def search_similar_positions(query: str) -> List[Dict]:
                     "score": float(hit.score)
                 })
 
-        # Si Milvus renvoie quelque chose → on prend
+       
         if output:
             return output
 

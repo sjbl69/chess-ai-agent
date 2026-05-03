@@ -1,30 +1,19 @@
 import requests
 
-LICHESS_API = "https://explorer.lichess.ovh/masters"
-
 
 def get_theoretical_moves(fen: str):
     try:
-        response = requests.get(
-            LICHESS_API,
-            params={"fen": fen},
-            timeout=5
-        )
-        response.raise_for_status()
+        url = f"https://explorer.lichess.ovh/lichess?fen={fen}"
+        response = requests.get(url)
 
         data = response.json()
-        moves = data.get("moves", [])
 
-        return [
-            {
-                "uci": move["uci"],
-                "san": move["san"],
-                "white": move["white"],
-                "draws": move["draws"],
-                "black": move["black"]
-            }
-            for move in moves
-        ]
+        moves = []
+        for move in data.get("moves", []):
+            moves.append(move["san"])
 
-    except requests.exceptions.RequestException:
-        return None
+        return moves[:5]
+
+    except Exception as e:
+        print("Erreur Lichess :", e)
+        return []

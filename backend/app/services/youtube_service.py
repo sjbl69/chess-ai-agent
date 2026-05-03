@@ -7,15 +7,12 @@ load_dotenv()
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 
 
-def search_youtube_videos(opening: str, max_results: int = 3):
-    if not YOUTUBE_API_KEY:
-        print("Clé API manquante")
-        return []
-
+def search_youtube_videos(query: str, max_results: int = 3):
     try:
-        youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
+        if not YOUTUBE_API_KEY:
+            return []
 
-        query = f"{opening} chess opening tutorial"
+        youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
 
         request = youtube.search().list(
             part="snippet",
@@ -39,5 +36,5 @@ def search_youtube_videos(opening: str, max_results: int = 3):
         return videos
 
     except Exception as e:
-        print("Erreur YouTube:", e)
+        print("Erreur YouTube :", e)
         return []
