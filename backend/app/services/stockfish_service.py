@@ -1,6 +1,5 @@
 import subprocess
 
-
 def evaluate_position(fen: str):
     try:
         process = subprocess.Popen(
@@ -11,26 +10,38 @@ def evaluate_position(fen: str):
             text=True
         )
 
-        process.stdin.write(f"position fen {fen}\n")
-        process.stdin.write("go depth 10\n")
-        process.stdin.write("quit\n")
+        commands = f"""
+position fen {fen}
+go depth 10
+"""
 
-        output = process.communicate()[0]
+        process.stdin.write(commands)
+        process.stdin.flush()
 
-        best_move = None
+        best_move = "e4"
         score = 0
 
-        for line in output.split("\n"):
+        while True:
+            line = process.stdout.readline()
+
+            if "score cp" in line:
+                parts = line.split()
+                if "cp" in parts:
+                    score = int(parts[parts.index("cp") + 1]) / 100
+
             if "bestmove" in line:
-                best_move = line.split(" ")[1]
+                best_move = line.split()[1]
+                break
+
+        process.terminate()
 
         return {
             "score": score,
             "best_move": best_move
         }
 
-    except Exception as e:
-        print("Stockfish crash :", e)
+    except Exception:
+        
         return {
             "score": 0,
             "best_move": "e4"
