@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   backend:
     build: ./backend
@@ -6,6 +8,8 @@ services:
       - "8000:8000"
     depends_on:
       - milvus
+    volumes:
+      - ./backend:/app  
 
   milvus:
     image: milvusdb/milvus:v2.3.3
@@ -17,3 +21,8 @@ services:
     environment:
       ETCD_USE_EMBED: "true"
       COMMON_STORAGETYPE: "local"
+    volumes:
+      - milvus_data:/var/lib/milvus  
+
+volumes:
+  milvus_data:  
